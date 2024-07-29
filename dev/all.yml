@@ -1,0 +1,106 @@
+apiVersion: eventing.knative.dev/v1
+kind: broker
+metadata:
+  name: default
+  namespace: kserve-test
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hello-display
+  namespace: kserve-test
+spec:
+  replicas: 1
+  selector:
+    matchLabels: &labels
+      app: hello-display
+  template:
+    metadata:
+      labels: *labels
+    spec:
+      containers:
+        - name: event-display
+          image: gcr.io/knative-releases/knative.dev/eventing-contrib/cmd/event_display
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: hello-display
+  namespace: kserve-test
+spec:
+  selector:
+    app: hello-display
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 8080
+---
+apiVersion: serving.kserve.io/v1beta1
+kind: "InferenceService"
+metadata:
+  name: "tfserving-cifar10"
+  namespace: "kserve-test"
+spec:
+  predictor:
+    tensorflow:
+      storageUri: "gs://seldon-models/tfserving/cifar10/resnet32"
+      resources:
+        requests:
+          cpu: 100m
+          memory: 128Mi
+        limits:
+          cpu: 500m
+          memory: 512Mi
+    logger:
+      mode: all
+      url: http://broker-ingress.knative-eventing.svc.cluster.local/knative-eventing/knative-broker/default
+---
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: drift-detector
+  namespace: kserve-test
+spec:
+  template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/minScale: "1"
+    spec:
+      containers:
+      - image: seldonio/alibi-detect-server:0.0.2
+        imagePullPolicy: IfNotPresent
+        args:
+        - --model_name
+        - cifar10cd
+        - --http_port
+        - '8080'
+        - --protocol
+        - tensorflow.http
+        - --storage_uri
+        - gs://seldon-models/alibi-detect/cd/ks/cifar10
+        - --reply_url
+        - http://hello-display.cifar10
+        - --event_type
+        - org.kubeflow.serving.inference.outlier
+        - --event_source
+        - org.kubeflow.serving.cifar10cd
+        - DriftDetector
+        - --drift_batch_size
+        - '5000'
+---
+apiVersion: eventing.knative.dev/v1
+kind: Trigger
+metadata:
+  name: drift-trigger
+  namespace: kserve-test
+spec:
+  broker: default
+  filter:
+    attributes:
+      type: org.kubeflow.serving.inference.request
+  subscriber:
+    ref:
+      apiVersion: serving.knative.dev/v1
+      kind: Service
+      name: drift-detector
+      namespace: kserve-test
