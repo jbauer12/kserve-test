@@ -19,16 +19,4 @@ spec:
   storageClassName: local-storage
   hostPath:
     path: /mnt/data 
----
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: immich-library-pvc
-  namespace: immich
-spec:
-  accessModes:
-    - ReadWriteOnce  
-  resources:
-    requests:
-      storage: 10Gi  
-  storageClassName: local-storage  
+
