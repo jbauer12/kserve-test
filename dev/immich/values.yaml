@@ -1,3 +1,0 @@
-persistence:
-  library:
-    existingClaim: "immich-library-pvc"  
