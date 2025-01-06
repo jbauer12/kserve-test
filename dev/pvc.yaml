@@ -3,15 +3,3 @@ kind: Namespace
 metadata:
   name: immich
 ---
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: immich-library-pvc
-  namespace: immich
-spec:
-  accessModes:
-    - ReadWriteOnce  
-  resources:
-    requests:
-      storage: 10Gi  
-  storageClassName: local-storage  
